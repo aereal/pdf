@@ -11,6 +11,9 @@ import (
 	"io"
 	"sort"
 	"strings"
+
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/transform"
 )
 
 // A Page represent a single page in a PDF file.
@@ -210,6 +213,9 @@ func (f Font) getEncoder() TextEncoding {
 			return &byteEncoder{&macRomanEncoding}
 		case "Identity-H":
 			return f.charmapEncoding()
+		case "90ms-RKSJ-H", "90ms-RKSJ-V", "90msp-RKSJ-H", "90msp-RKSJ-V",
+			"Add-RKSJ-H", "Add-RKSJ-V", "Ext-RKSJ-H", "Ext-RKSJ-V":
+			return &shiftJISEncoder{}
 		default:
 			if DebugOn {
 				println("unknown encoding", enc.Name())
@@ -285,6 +291,18 @@ type nopEncoder struct {
 
 func (e *nopEncoder) Decode(raw string) (text string) {
 	return raw
+}
+
+// shiftJISEncoder decodes Shift-JIS (MS Code Page 932) byte sequences to UTF-8.
+// Used for predefined CMaps such as 90ms-RKSJ-H/V.
+type shiftJISEncoder struct{}
+
+func (e *shiftJISEncoder) Decode(raw string) (text string) {
+	decoded, _, err := transform.String(japanese.ShiftJIS.NewDecoder(), raw)
+	if err != nil {
+		return raw
+	}
+	return decoded
 }
 
 type byteEncoder struct {
